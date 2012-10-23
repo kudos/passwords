@@ -19,11 +19,11 @@ requires = ['py-bcrypt']
 
 setup(
     name='passwords',
-    version='0.0.4',
+    version='0.0.5',
     description='Passwords for everyone.',
     author='Jonathan Cremin',
     author_email='jonathan@crem.in',
-    url='http://crem.in/passwords',
+    url='http://github.com/kudos/passwords',
     packages=packages,
     package_data={'': ['LICENSE']},
     package_dir={'passwords': 'passwords'},
