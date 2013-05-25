@@ -1,11 +1,15 @@
 __title__ = 'passwords'
 __version__ = '0.1.0'
 
-
+import sys
 from os import urandom
 from base64 import b64encode
-from itertools import izip
-import pbkdf2
+from . import pbkdf2
+
+PY2 = sys.version_info[0] == 2
+if PY2:
+    from itertools import izip as zip
+
 
 
 def crypt(password, cost=2):
@@ -27,7 +31,7 @@ def crypt(password, cost=2):
 
     hashed = pbkdf2.pbkdf2_hex(password, salt, cost * 500)
 
-    return "$pbkdf2-256-1$" + str(cost) + "$" + salt + "$" + hashed
+    return "$pbkdf2-256-1$" + str(cost) + "$" + salt.decode("utf-8") + "$" + hashed
 
 
 def verify(password, hash):
@@ -51,7 +55,7 @@ def _safe_str_cmp(a, b):
     if len(a) != len(b):
         return False
     rv = 0
-    for x, y in izip(a, b):
+    for x, y in zip(a, b):
         rv |= ord(x) ^ ord(y)
     return rv == 0
 

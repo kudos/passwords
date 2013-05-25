@@ -1,35 +1,3 @@
-# Copyright (c) 2011 by Armin Ronacher.
-#
-# Some rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are
-# met:
-#
-#     * Redistributions of source code must retain the above copyright
-#       notice, this list of conditions and the following disclaimer.
-#
-#     * Redistributions in binary form must reproduce the above
-#       copyright notice, this list of conditions and the following
-#       disclaimer in the documentation and/or other materials provided
-#       with the distribution.
-#
-#     * The names of the contributors may not be used to endorse or
-#       promote products derived from this software without specific
-#       prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
 # -*- coding: utf-8 -*-
 """
     pbkdf2
@@ -72,19 +40,51 @@
     :copyright: (c) Copyright 2011 by Armin Ronacher.
     :license: BSD, see LICENSE for more details.
 """
+from binascii import hexlify
 import hmac
 import hashlib
+import sys
 from struct import Struct
 from operator import xor
-from itertools import izip, starmap
+from itertools import starmap
+
+PY2 = sys.version_info[0] == 2
+
+if PY2:
+    from itertools import izip as zip
+
+if not PY2:
+    text_type = str
+else:
+    text_type = unicode
 
 
 _pack_int = Struct('>I').pack
 
 
+def bytes_(s, encoding='utf8', errors='strict'):
+    if isinstance(s, text_type):
+        return s.encode(encoding, errors)
+    return s
+
+
+def hexlify_(s):
+    if not PY2:
+        return str(hexlify(s), encoding="utf8")
+    else:
+        return s.encode('hex')
+
+
+def range_(*args):
+    if not PY2:
+        return range(*args)
+    else:
+        return xrange(*args)
+
+
 def pbkdf2_hex(data, salt, iterations=1000, keylen=24, hashfunc=None):
     """Like :func:`pbkdf2_bin` but returns a hex encoded string."""
-    return pbkdf2_bin(data, salt, iterations, keylen, hashfunc).encode('hex')
+    return hexlify_(pbkdf2_bin(data, salt, iterations, keylen, hashfunc))
 
 
 def pbkdf2_bin(data, salt, iterations=1000, keylen=24, hashfunc=None):
@@ -94,20 +94,29 @@ def pbkdf2_bin(data, salt, iterations=1000, keylen=24, hashfunc=None):
     a different hashlib `hashfunc` can be provided.
     """
     hashfunc = hashfunc or hashlib.sha1
-    mac = hmac.new(data, None, hashfunc)
+    mac = hmac.new(bytes_(data), None, hashfunc)
 
     def _pseudorandom(x, mac=mac):
         h = mac.copy()
-        h.update(x)
-        return map(ord, h.digest())
+        h.update(bytes_(x))
+        if not PY2:
+            return [x for x in h.digest()]
+        else:
+            return map(ord, h.digest())
     buf = []
-    for block in xrange(1, -(-keylen // mac.digest_size) + 1):
-        rv = u = _pseudorandom(salt + _pack_int(block))
-        for i in xrange(iterations - 1):
-            u = _pseudorandom(''.join(map(chr, u)))
-            rv = starmap(xor, izip(rv, u))
+    for block in range_(1, -(-keylen // mac.digest_size) + 1):
+        rv = u = _pseudorandom(bytes_(salt) + _pack_int(block))
+        for i in range_(iterations - 1):
+            if not PY2:
+                u = _pseudorandom(bytes(u))
+            else:
+                u = _pseudorandom(''.join(map(chr, u)))
+            rv = starmap(xor, zip(rv, u))
         buf.extend(rv)
-    return ''.join(map(chr, buf))[:keylen]
+    if not PY2:
+        return bytes(buf)[:keylen]
+    else:
+        return ''.join(map(chr, buf))[:keylen]
 
 
 def test():
@@ -116,13 +125,13 @@ def test():
     def check(data, salt, iterations, keylen, expected):
         rv = pbkdf2_hex(data, salt, iterations, keylen)
         if rv != expected:
-            print 'Test failed:'
-            print '  Expected:   %s' % expected
-            print '  Got:        %s' % rv
-            print '  Parameters:'
-            print '    data=%s' % data
-            print '    salt=%s' % salt
-            print '    iterations=%d' % iterations
+            print ('Test failed:')
+            print ('  Expected:   %s' % expected)
+            print ('  Got:        %s' % rv)
+            print ('  Parameters:')
+            print ('    data=%s' % data)
+            print ('    salt=%s' % salt)
+            print ('    iterations=%d' % iterations)
             print
             failed.append(1)
 
